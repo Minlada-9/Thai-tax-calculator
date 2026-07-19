@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>สมุดบัญชีภาษี — ระบบคำนวณภาษีฉบับสมบูรณ์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="confettiCanvas"></canvas>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="brand-eyebrow">แบบจำลองการยื่นภาษี · ฉบับประมาณการ</p>
+      <h1>สมุดบัญชีภาษี</h1>
+      <p class="subtitle">คำนวณภาษีเงินได้บุคคลธรรมดา ภาษีมูลค่าเพิ่ม และภาษีนิติบุคคล ตามอัตราปีภาษี 2568</p>
+    </div>
+    <div>
+      <div class="header-controls">
+        <button class="icon-btn" id="themeToggle" type="button"><span class="sun-moon">☀️</span><span id="themeLabel">โหมดกลางวัน</span></button>
+        <button class="icon-btn" id="printBtn" type="button">🖨️ พิมพ์ใบสรุป</button>
+      </div>
+      <div class="ledger-no" style="margin-top:8px;">เลขที่ / REF<br>TAX-2568-EST</div>
+    </div>
+  </header>
+
+  <div class="profile-bar">
+    <div class="pf-field"><label for="pfName">ชื่อผู้เสียภาษี</label><input type="text" id="pfName" placeholder="ระบุชื่อ-นามสกุล / กิจการ"></div>
+    <div class="pf-field"><label for="pfTaxId">เลขประจำตัวผู้เสียภาษี</label><input type="text" id="pfTaxId" placeholder="X-XXXX-XXXXX-XX-X"></div>
+    <span class="pf-note">ข้อมูลนี้บันทึกไว้ในเครื่องของคุณเท่านั้น ใช้แสดงบนใบสรุปพิมพ์และประวัติ</span>
+  </div>
+  <div class="print-taxpayer" style="margin-bottom:14px; font-size:13px;">
+    <b id="printPfName">—</b> · เลขประจำตัวผู้เสียภาษี: <span id="printPfTaxId">—</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="pit">บุคคลธรรมดา</button>
+    <button class="tab-btn" data-tab="vat">ภาษีมูลค่าเพิ่ม (VAT)</button>
+    <button class="tab-btn" data-tab="corp">นิติบุคคล</button>
+    <button class="tab-btn" data-tab="calendar">📅 ปฏิทินภาษี</button>
+    <button class="tab-btn" data-tab="history">🕘 ประวัติ<span id="historyCountBadge"></span></button>
+  </div>
+
+  <div class="panel-shell">
+
+    <!-- ================= PERSONAL INCOME TAX ================= -->
+    <section class="tax-panel active" id="panel-pit">
+      <div class="grid">
+        <div>
+          <div class="preset-row">
+            <button type="button" class="preset-btn" data-preset="employee">👔 มนุษย์เงินเดือน</button>
+            <button type="button" class="preset-btn" data-preset="freelance">💻 ฟรีแลนซ์</button>
+            <button type="button" class="preset-btn" data-preset="family">👨‍👩‍👧 มีครอบครัว/บุตร</button>
+            <button type="button" class="preset-btn" data-preset="reset">↺ ล้างค่า</button>
+          </div>
+          <p class="section-title">รายได้ต่อปี</p>
+          <fieldset>
+            <legend>เงินได้ <span class="legend-tag">40(1)(2)</span></legend>
+            <div class="field-row">
+              <div class="field-label">เงินเดือน ค่าจ้าง โบนัส รวมทั้งปี
+                <span class="field-hint">หักค่าใช้จ่าย 50% สูงสุด 100,000 บาท</span>
+              </div>
+              <div class="field-input"><input type="number" id="salaryIncome" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">รายได้อิสระ/ธุรกิจ/ฟรีแลนซ์
+                <span class="field-hint">เช่น รับเหมา ค่านายหน้า ขายของ</span>
+              </div>
+              <div class="field-input"><input type="number" id="otherIncome" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">วิธีหักค่าใช้จ่ายของรายได้อิสระ</div>
+              <div class="field-input">
+                <select id="expenseMode">
+                  <option value="flat">หักเหมา 60%</option>
+                  <option value="actual">หักตามจริง</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row" id="actualExpenseRow" style="display:none;">
+              <div class="field-label">ค่าใช้จ่ายตามจริง</div>
+              <div class="field-input"><input type="number" id="otherExpenseActual" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+
+          <p class="section-title">ค่าลดหย่อนส่วนตัว &amp; ครอบครัว</p>
+          <fieldset>
+            <div class="field-row">
+              <div class="field-label">ค่าลดหย่อนส่วนตัว <span class="field-hint">อัตโนมัติทุกคน</span></div>
+              <div class="field-input"><b style="font-family:'IBM Plex Mono',monospace;">60,000</b></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">คู่สมรส (ไม่มีเงินได้)</div>
+              <div class="field-input"><input type="checkbox" id="spouse"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">จำนวนบุตร
+                <span class="field-hint">คนแรก 30,000 · คนถัดไปเกิดปี 2561+ ได้ 60,000</span>
+              </div>
+              <div class="field-input"><input type="number" id="childCount" value="0" min="0" step="1"><span class="unit">คน</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">บุตรคนที่ 2 ขึ้นไปเกิดปี 2561 เป็นต้นไป</div>
+              <div class="field-input"><input type="checkbox" id="childNewRule"></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">อุปการะบิดามารดา (ตนเอง/คู่สมรส)
+                <span class="field-hint">คนละ 30,000 บาท สูงสุด 4 คน</span>
+              </div>
+              <div class="field-input"><input type="number" id="parentsCount" value="0" min="0" max="4" step="1"><span class="unit">คน</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">อุปการะผู้พิการ/ทุพพลภาพ
+                <span class="field-hint">คนละ 60,000 บาท</span>
+              </div>
+              <div class="field-input"><input type="number" id="disabledCount" value="0" min="0" step="1"><span class="unit">คน</span></div>
+            </div>
+          </fieldset>
+
+          <p class="section-title">ประกันและการออมเพื่อลดหย่อน</p>
+          <fieldset>
+            <div class="field-row">
+              <div class="field-label">เงินสมทบประกันสังคม <span class="field-hint">สูงสุด 9,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="socialSecurity" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เบี้ยประกันชีวิตทั่วไป <span class="field-hint">รวมกับประกันสุขภาพไม่เกิน 100,000</span></div>
+              <div class="field-input"><input type="number" id="lifeIns" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เบี้ยประกันสุขภาพตนเอง <span class="field-hint">สูงสุด 25,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="healthIns" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เบี้ยประกันสุขภาพบิดามารดา <span class="field-hint">สูงสุด 15,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="parentHealthIns" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">กองทุนสำรองเลี้ยงชีพ / กบข. <span class="field-hint">กลุ่มเกษียณรวมสูงสุด 500,000</span></div>
+              <div class="field-input"><input type="number" id="pvd" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">กองทุน RMF</div>
+              <div class="field-input"><input type="number" id="rmf" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">กองทุน SSF</div>
+              <div class="field-input"><input type="number" id="ssf" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">ประกันชีวิตแบบบำนาญ</div>
+              <div class="field-input"><input type="number" id="annuity" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">กองทุน Thai ESG <span class="field-hint">แยกต่างหาก สูงสุด 300,000</span></div>
+              <div class="field-input"><input type="number" id="thaiesg" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+
+          <p class="section-title">อื่น ๆ และเงินบริจาค</p>
+          <fieldset>
+            <div class="field-row">
+              <div class="field-label">ดอกเบี้ยกู้ยืมเพื่อที่อยู่อาศัย <span class="field-hint">สูงสุด 100,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="homeInterest" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">Easy E-Receipt 2.0 <span class="field-hint">สูงสุด 50,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="easyReceipt" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เงินบริจาคทั่วไป <span class="field-hint">รวมกับด้านล่าง ไม่เกิน 10% ของเงินได้หลังหักค่าใช้จ่าย/ลดหย่อน</span></div>
+              <div class="field-input"><input type="number" id="donationGeneral" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เงินบริจาคการศึกษา/กีฬา/รพ.รัฐ <span class="field-hint">หักได้ 2 เท่าของยอดบริจาคจริง</span></div>
+              <div class="field-input"><input type="number" id="donationDouble" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">เงินบริจาคพรรคการเมือง <span class="field-hint">สูงสุด 10,000 บาท</span></div>
+              <div class="field-input"><input type="number" id="donationParty" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="summary-col">
+          <div class="stamp-card">
+            <p class="stamp-eyebrow">ยอดภาษีที่ต้องชำระโดยประมาณ</p>
+            <div class="seal">
+              <div class="seal-ring" id="pitSeal"><span>ตรา<br>ประมาณการ</span></div>
+              <div>
+                <div class="stamp-amount" id="pitTaxAmount">0<small>บาท/ปี</small></div>
+                <div class="stamp-status" id="pitStatus">กรอกข้อมูลเพื่อคำนวณ</div>
+              </div>
+            </div>
+            <hr class="divider-dash">
+            <div class="summary-line"><span>รายได้รวมทั้งปี</span><b id="sumIncome">0</b></div>
+            <div class="summary-line"><span>หักค่าใช้จ่าย</span><b id="sumExpense">0</b></div>
+            <div class="summary-line"><span>หักค่าลดหย่อนรวม</span><b id="sumDeduction">0</b></div>
+            <div class="summary-line"><span>เงินได้สุทธิ</span><b id="sumNet">0</b></div>
+            <div class="summary-line"><span>อัตราภาษีเฉลี่ย (Effective)</span><b id="sumEffRate">0%</b></div>
+            <div class="summary-line"><span>ประมาณภาษีต่อเดือน</span><b id="sumMonthly">0</b></div>
+            <div class="gauge-wrap">
+              <div class="gauge-title"><span>ความเบา</span><span>ความหนักของภาระภาษี</span><span>ความหนัก</span></div>
+              <div class="gauge-track"><div class="gauge-marker" id="pitGaugeMarker"></div></div>
+              <div class="gauge-mood" id="pitGaugeMood">—</div>
+            </div>
+            <div class="note-box">ตัวเลขนี้เป็นการประมาณการเบื้องต้นเพื่อวางแผนภาษีเท่านั้น ไม่ใช่แบบแสดงรายการอย่างเป็นทางการ กรุณาตรวจสอบกับกรมสรรพากรหรือผู้เชี่ยวชาญก่อนยื่นจริง</div>
+          </div>
+          <div class="save-history-row">
+            <button type="button" data-savehist="pit">💾 บันทึกลงประวัติ</button>
+            <span class="saved-flash" id="pitSavedFlash">บันทึกแล้ว ✓</span>
+          </div>
+          <div class="ladder" id="pitLadder"></div>
+          <table class="breakdown-table" id="pitBreakdown">
+            <thead><tr><th>ขั้นเงินได้สุทธิ (บาท)</th><th>อัตรา</th><th class="num">ภาษี (บาท)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VAT ================= -->
+    <section class="tax-panel" id="panel-vat">
+      <div class="grid">
+        <div>
+          <p class="section-title">อัตราและรูปแบบยอดขาย</p>
+          <fieldset>
+            <legend>อัตราภาษี</legend>
+            <div class="toggle-row">
+              <button type="button" class="toggle-btn on" data-vatrate="7">7% (ปัจจุบัน ถึง 30 ก.ย. 2569)</button>
+              <button type="button" class="toggle-btn" data-vatrate="10">10% (อัตราตามกฎหมาย)</button>
+            </div>
+            <div class="field-row">
+              <div class="field-label">รูปแบบยอดขายที่กรอก</div>
+              <div class="field-input">
+                <select id="vatMode">
+                  <option value="exclusive">ยอดขายยังไม่รวม VAT</option>
+                  <option value="inclusive">ยอดขายรวม VAT แล้ว</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <p class="section-title">ภาษีขาย (Output VAT)</p>
+          <fieldset>
+            <div class="field-row">
+              <div class="field-label">ยอดขายสินค้า/บริการ (ต่อเดือนหรือรอบที่ต้องการ)</div>
+              <div class="field-input"><input type="number" id="vatSales" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+
+          <p class="section-title">ภาษีซื้อ (Input VAT)</p>
+          <fieldset>
+            <div class="field-row">
+              <div class="field-label">รูปแบบยอดซื้อที่กรอก</div>
+              <div class="field-input">
+                <select id="vatPurchaseMode">
+                  <option value="exclusive">ยอดซื้อยังไม่รวม VAT</option>
+                  <option value="inclusive">ยอดซื้อรวม VAT แล้ว</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field-label">ยอดซื้อสินค้า/บริการ (ที่มีใบกำกับภาษี)</div>
+              <div class="field-input"><input type="number" id="vatPurchase" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="summary-col">
+          <div class="stamp-card">
+            <p class="stamp-eyebrow">ภาษีมูลค่าเพิ่มสุทธิ</p>
+            <div class="seal">
+              <div class="seal-ring" id="vatSeal"><span>ตรา<br>VAT</span></div>
+              <div>
+                <div class="stamp-amount" id="vatNetAmount">0<small>บาท</small></div>
+                <div class="stamp-status" id="vatStatus">กรอกยอดขาย/ยอดซื้อ</div>
+              </div>
+            </div>
+            <hr class="divider-dash">
+            <div class="summary-line"><span>มูลค่าสินค้า/บริการ (ไม่รวม VAT)</span><b id="vatBase">0</b></div>
+            <div class="summary-line"><span>ภาษีขาย (Output VAT)</span><b id="vatOutput">0</b></div>
+            <div class="summary-line"><span>มูลค่าซื้อ (ไม่รวม VAT)</span><b id="vatPurchaseBase">0</b></div>
+            <div class="summary-line"><span>ภาษีซื้อ (Input VAT)</span><b id="vatInput">0</b></div>
+            <div class="note-box">หากภาษีซื้อมากกว่าภาษีขาย ผู้ประกอบการมีสิทธิขอคืนภาษีหรือยกยอดไปเดือนถัดไป การยื่นแบบจริงต้องยื่น ภ.พ.30 ภายในวันที่ 15 ของเดือนถัดไป</div>
+          </div>
+          <div class="save-history-row">
+            <button type="button" data-savehist="vat">💾 บันทึกลงประวัติ</button>
+            <span class="saved-flash" id="vatSavedFlash">บันทึกแล้ว ✓</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CORPORATE TAX ================= -->
+    <section class="tax-panel" id="panel-corp">
+      <div class="grid">
+        <div>
+          <p class="section-title">ประเภทกิจการ</p>
+          <fieldset>
+            <div class="toggle-row">
+              <button type="button" class="toggle-btn on" data-corptype="sme">SME (ทุนจดทะเบียนชำระแล้ว ≤ 5 ล้าน และรายได้ ≤ 30 ล้าน/ปี)</button>
+              <button type="button" class="toggle-btn" data-corptype="general">บริษัททั่วไป</button>
+            </div>
+            <div class="field-row">
+              <div class="field-label">กำไรสุทธิทางภาษีทั้งปี</div>
+              <div class="field-input"><input type="number" id="corpProfit" value="0" min="0"><span class="unit">บาท</span></div>
+            </div>
+          </fieldset>
+          <p class="section-title">หมายเหตุอัตราภาษี</p>
+          <fieldset>
+            <div class="field-row"><div class="field-label">SME: กำไร 0–300,000 บาท</div><div class="field-input"><b>ยกเว้น</b></div></div>
+            <div class="field-row"><div class="field-label">SME: กำไร 300,001–3,000,000 บาท</div><div class="field-input"><b>15%</b></div></div>
+            <div class="field-row"><div class="field-label">SME: กำไรส่วนเกิน 3,000,000 บาท</div><div class="field-input"><b>20%</b></div></div>
+            <div class="field-row"><div class="field-label">บริษัททั่วไป: ทุกระดับกำไร</div><div class="field-input"><b>20%</b></div></div>
+          </fieldset>
+        </div>
+
+        <div class="summary-col">
+          <div class="stamp-card">
+            <p class="stamp-eyebrow">ภาษีนิติบุคคลที่ต้องชำระ</p>
+            <div class="seal">
+              <div class="seal-ring" id="corpSeal"><span>ตรา<br>นิติบุคคล</span></div>
+              <div>
+                <div class="stamp-amount" id="corpTaxAmount">0<small>บาท</small></div>
+                <div class="stamp-status" id="corpStatus">กรอกกำไรสุทธิ</div>
+              </div>
+            </div>
+            <hr class="divider-dash">
+            <div class="summary-line"><span>กำไรสุทธิทางภาษี</span><b id="corpProfitOut">0</b></div>
+            <div class="summary-line"><span>อัตราภาษีเฉลี่ย (Effective)</span><b id="corpEffRate">0%</b></div>
+            <div class="summary-line"><span>กำไรสุทธิหลังหักภาษี</span><b id="corpAfterTax">0</b></div>
+            <div class="note-box">การยื่นจริงต้องยื่น ภ.ง.ด.51 (กลางปี) และ ภ.ง.ด.50 (สิ้นปี) พร้อมงบการเงินที่ผ่านการตรวจสอบ</div>
+          </div>
+          <div class="save-history-row">
+            <button type="button" data-savehist="corp">💾 บันทึกลงประวัติ</button>
+            <span class="saved-flash" id="corpSavedFlash">บันทึกแล้ว ✓</span>
+          </div>
+          <div class="ladder" id="corpLadder"></div>
+          <table class="breakdown-table" id="corpBreakdown">
+            <thead><tr><th>ขั้นกำไรสุทธิ (บาท)</th><th>อัตรา</th><th class="num">ภาษี (บาท)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= TAX CALENDAR ================= -->
+    <section class="tax-panel" id="panel-calendar">
+      <p class="section-title">ปฏิทินกำหนดยื่นภาษี</p>
+      <div class="calendar-toolbar">
+        <label class="notify-toggle">
+          <input type="checkbox" id="notifyToggle">
+          🔔 เปิดแจ้งเตือนเบราว์เซอร์เมื่อใกล้ครบกำหนด (≤ 7 วัน)
+        </label>
+        <button type="button" class="hb-action" id="icsExportBtn">⬇️ ดาวน์โหลดปฏิทิน (.ics)</button>
+      </div>
+      <div class="deadline-list" id="deadlineList"></div>
+      <div class="note-box" style="color:var(--ink-soft); background:rgba(23,35,63,0.05); border-color:var(--line); margin-top:16px;">
+        วันที่ข้างต้นเป็นกำหนดการโดยประมาณตามหลักเกณฑ์ทั่วไปของกรมสรรพากร (ปีภาษีปฏิทิน / e-Filing) อาจคลาดเคลื่อนหากกิจการมีรอบบัญชีต่างไป หรือมีประกาศขยายเวลา กรุณาตรวจสอบวันที่แน่นอนกับกรมสรรพากรก่อนถึงกำหนดจริง
+      </div>
+    </section>
+
+    <!-- ================= HISTORY ================= -->
+    <section class="tax-panel" id="panel-history">
+      <p class="section-title">ประวัติการคำนวณ</p>
+      <div class="history-toolbar">
+        <button type="button" class="history-filter on" data-histfilter="all">ทั้งหมด</button>
+        <button type="button" class="history-filter" data-histfilter="pit">บุคคลธรรมดา</button>
+        <button type="button" class="history-filter" data-histfilter="vat">VAT</button>
+        <button type="button" class="history-filter" data-histfilter="corp">นิติบุคคล</button>
+        <span class="spacer"></span>
+        <button type="button" class="hb-action" id="exportCsvBtn">⬇️ ส่งออก CSV</button>
+        <button type="button" class="hb-action danger" id="clearHistBtn">🗑️ ลบทั้งหมด</button>
+      </div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+  </div>
+
+  <footer>ตัวเลขทั้งหมดเป็นการประมาณการตามอัตราภาษีปีภาษี 2568 เพื่อการวางแผนเบื้องต้นเท่านั้น มิใช่คำแนะนำทางกฎหมายหรือภาษี</footer>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
